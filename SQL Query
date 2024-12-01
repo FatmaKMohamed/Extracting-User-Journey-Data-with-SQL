@@ -1,0 +1,72 @@
+WITH filtered_student_purchases AS
+  (SELECT user_id,
+          MIN(date_purchased) AS first_purchase
+   FROM student_purchases
+   WHERE date_purchased BETWEEN '2023-01-01' AND '2023-03-31'
+     AND purchase_price>0
+   GROUP BY user_id),
+     paying_customers AS
+  (SELECT SP.user_id,
+          FV.visitor_id,
+          FI.session_id,
+          FI.event_source_url,
+          FI.event_destination_url,
+          SP.purchase_type
+   FROM front_interactions AS FI
+   JOIN student_purchases AS SP ON FI.visitor_id = SP.user_id
+   JOIN filtered_student_purchases AS FSP ON FSP.user_id = SP.user_id
+   AND FSP.first_purchase = SP.date_purchased
+   JOIN front_visitors AS FV ON FV.user_id = SP.user_id
+   WHERE FSP.first_purchase > FI.event_date),
+     URL_Aliases AS
+  (SELECT user_id,
+          session_id,
+          CASE
+              WHEN event_source_url = 'https://365datascience.com/' THEN 'Homepage'
+              WHEN event_source_url LIKE 'https://365datascience.com/login/%' THEN 'Log in'
+              WHEN event_source_url LIKE 'https://365datascience.com/signup/%' THEN 'Sign up'
+              WHEN event_source_url LIKE 'https://365datascience.com/resources-center/%' THEN 'Resources center'
+              WHEN event_source_url LIKE 'https://365datascience.com/courses/%' THEN 'Courses'
+              WHEN event_source_url LIKE 'https://365datascience.com/career-tracks/%' THEN 'Career tracks'
+              WHEN event_source_url LIKE 'https://365datascience.com/upcoming-courses/%' THEN 'Upcoming courses'
+              WHEN event_source_url LIKE 'https://365datascience.com/career-track-certificate/%' THEN 'Career track certificate'
+              WHEN event_source_url LIKE 'https://365datascience.com/course-certificate/%' THEN 'Course certificate'
+              WHEN event_source_url LIKE 'https://365datascience.com/success-stories/%' THEN 'Success stories'
+              WHEN event_source_url LIKE 'https://365datascience.com/blog/%' THEN 'Blog'
+              WHEN event_source_url LIKE 'https://365datascience.com/pricing/%' THEN 'Pricing'
+              WHEN event_source_url LIKE 'https://365datascience.com/about-us/%' THEN 'About us'
+              WHEN event_source_url LIKE 'https://365datascience.com/instructors/%' THEN 'Instructors'
+              WHEN event_source_url LIKE 'https://365datascience.com/checkout/%'
+                   AND event_source_url LIKE '%coupon%' THEN 'Coupon'
+              WHEN event_source_url LIKE 'https://365datascience.com/checkout/%'
+                   AND event_source_url NOT LIKE '%coupon%' THEN 'Checkout'
+              ELSE 'Other'
+          END AS source_page_alias,
+          CASE
+              WHEN event_destination_url = 'https://365datascience.com/' THEN 'Homepage'
+              WHEN event_destination_url LIKE 'https://365datascience.com/login/%' THEN 'Log in'
+              WHEN event_destination_url LIKE 'https://365datascience.com/signup/%' THEN 'Sign up'
+              WHEN event_destination_url LIKE 'https://365datascience.com/resources-center/%' THEN 'Resources center'
+              WHEN event_destination_url LIKE 'https://365datascience.com/courses/%' THEN 'Courses'
+              WHEN event_destination_url LIKE 'https://365datascience.com/career-tracks/%' THEN 'Career tracks'
+              WHEN event_destination_url LIKE 'https://365datascience.com/upcoming-courses/%' THEN 'Upcoming courses'
+              WHEN event_destination_url LIKE 'https://365datascience.com/career-track-certificate/%' THEN 'Career track certificate'
+              WHEN event_destination_url LIKE 'https://365datascience.com/course-certificate/%' THEN 'Course certificate'
+              WHEN event_destination_url LIKE 'https://365datascience.com/success-stories/%' THEN 'Success stories'
+              WHEN event_destination_url LIKE 'https://365datascience.com/blog/%' THEN 'Blog'
+              WHEN event_destination_url LIKE 'https://365datascience.com/pricing/%' THEN 'Pricing'
+              WHEN event_destination_url LIKE 'https://365datascience.com/about-us/%' THEN 'About us'
+              WHEN event_destination_url LIKE 'https://365datascience.com/instructors/%' THEN 'Instructors'
+              WHEN event_destination_url LIKE 'https://365datascience.com/checkout/%'
+                   AND event_destination_url LIKE '%coupon%' THEN 'Coupon'
+              WHEN event_destination_url LIKE 'https://365datascience.com/checkout/%'
+                   AND event_destination_url NOT LIKE '%coupon%' THEN 'Checkout'
+              ELSE 'Other'
+          END AS destination_page_alias
+   FROM paying_customers)
+SELECT user_id,
+       session_id,
+       STRING_AGG(CONCAT(source_page_alias, '-', destination_page_alias), '-') AS sequence_of_pages
+FROM URL_Aliases
+ORDER BY user_id,
+         session_id )
